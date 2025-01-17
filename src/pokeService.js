@@ -3,17 +3,39 @@ const { apiUrl } = require('./config');
 
 /**
  * Lista os Pokémons com paginação.
- * @param {number} limit - Quantidade de Pokémons por página.
  * @param {number} offset - Deslocamento para paginação.
+ * @param {number} limit - Quantidade de Pokémons por página.
  * @returns {Promise<object>} - Lista de Pokémons.
  */
-async function listPokemons(limit = 10, offset = 0) {
+async function listPokemons(offset = 10, limit = 0) {
     try {
-        const response = await axios.get(`${apiUrl}?limit=${limit}&offset=${offset}`);
-        return response.data;
-    } catch (error) {
-        throw new Error(`Erro ao listar Pokémons: ${error.message}`);
-    }
+        const response = await axios.get(`${apiUrl}?offset=${offset}&limit=${limit}`);
+        // Obtemos a lista básica de Pokémon
+        const pokemons = response.data.results;
+
+        // Iteramos para obter detalhes adicionais de cada Pokémon
+        const detailedPokemons = await Promise.all(
+        pokemons.map(async (pokemon) => {
+            const details = await axios.get(pokemon.url); // Busca os detalhes completos
+
+            // Extrai os campos desejados
+            const { name, id, height, weight, types } = details.data;
+
+            return {
+            name,
+            id,
+            height,
+            weight,
+            type: types.map((t) => t.type.name).join(', '), // Combina os tipos em uma string
+            };
+        })
+ );
+
+ return detailedPokemons; // Retorna apenas os dados filtrados
+} catch (error) {
+ console.error('Erro ao listar os Pokémon:', error.message);
+ throw new Error('Não foi possível listar os Pokémon.');
+}
 }
 
 /**

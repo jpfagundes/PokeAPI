@@ -1,14 +1,8 @@
-const pokeService = require('./pokeService');
+// Importa o app do servidor
+const app = require('./server'); 
 
-async function main() {
-    try {
-        const pokemonName = 'pikachu'; // Substitua pelo Pokémon desejado
-        const pokemonDetails = await pokeService.getPokemonDetails(pokemonName);
-        console.log('\n=== Detalhes do Pokémon ===');
-        console.log(pokemonDetails);
-    } catch (error) {
-        console.error('Erro:', error.message);
-    }
-}
-
-main();
+// Inicializa o servidor
+const PORT = process.env.PORT || 3333;
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`)
+    });

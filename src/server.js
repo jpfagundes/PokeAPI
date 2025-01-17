@@ -1,6 +1,9 @@
 const express = require('express');
 const pokeService = require("./pokeService");
+const cors = require('cors');
 const app = express();
+
+app.use(cors());
 
 // Endpoint para listar Pokémons com paginação
 app.get('/pokemons', async (request, response) => {
@@ -41,8 +44,5 @@ app.get('/pokemons/type/:type', async (request, response) => {
   }
 });
 
-
-
-// Inicializa o servidor
-const PORT = process.env.PORT || 3333;
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+// Exporta apenas o app, sem iniciar o servidor
+module.exports = app;
