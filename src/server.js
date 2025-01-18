@@ -7,7 +7,7 @@ app.use(cors());
 
 // Endpoint para listar Pokémons com paginação
 app.get('/pokemons', async (request, response) => {
-  const { offset = 0, limit = 20 } = request.query;
+  const { offset = 0, limit = 5 } = request.query;
 
   try {
       const pokemons = await pokeService.listPokemons(Number(offset), Number(limit));

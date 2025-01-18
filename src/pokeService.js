@@ -7,7 +7,7 @@ const { apiUrl } = require('./config');
  * @param {number} limit - Quantidade de Pokémons por página.
  * @returns {Promise<object>} - Lista de Pokémons.
  */
-async function listPokemons(offset = 10, limit = 0) {
+async function listPokemons(offset, limit) {
     try {
         const response = await axios.get(`${apiUrl}?offset=${offset}&limit=${limit}`);
         // Obtemos a lista básica de Pokémon
@@ -16,16 +16,14 @@ async function listPokemons(offset = 10, limit = 0) {
         // Iteramos para obter detalhes adicionais de cada Pokémon
         const detailedPokemons = await Promise.all(
         pokemons.map(async (pokemon) => {
-            const details = await axios.get(pokemon.url); // Busca os detalhes completos
+            const details = await axios.get(`${apiUrl}/${pokemon.name}`); // Busca os detalhes completos
 
-            // Extrai os campos desejados
-            const { name, id, height, weight, types } = details.data;
+            // Extrai os campos desejadosS
+            const { name, id, types } = details.data;
 
             return {
             name,
             id,
-            height,
-            weight,
             type: types.map((t) => t.type.name).join(', '), // Combina os tipos em uma string
             };
         })
