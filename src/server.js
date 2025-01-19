@@ -10,17 +10,15 @@ app.get('/pokemons', async (request, response) => {
   const { offset = 0, limit = 5 } = request.query;
 
   try {
-      const pokemons = await pokeService.listPokemons(Number(offset), Number(limit));
+      const pokemons = await pokeService.getPokemonList(Number(offset), Number(limit));
       response.json(pokemons);
   } catch (error) {
     throw new Error(`Erro ao listar Pokémons: ${error.message}`)
   }
 });
 
-
-
 // Endpoint para buscar os detalhes de um Pokémon
-app.get('/pokemon/:identifier', async (request, response) => {
+app.get('/pokemons/:identifier', async (request, response) => {
   const { identifier } = request.params;
 
   try {
