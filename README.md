@@ -35,7 +35,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 3. ▶️ Inicie o servidor:
 
    ```bash
-   node server.js
+   node src/index.js
    ```
 
 4. 🌐 O servidor estará disponível em `http://localhost:3000`.
