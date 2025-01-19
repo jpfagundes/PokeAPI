@@ -52,7 +52,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 - **Exemplo de Requisição:**
 
   ```bash
-  curl "http://localhost:3000/pokemon/list?offset=0&limit=10"
+  curl "http://localhost:3000/pokemons/list?offset=0&limit=10"
   ```
 
 - **Resposta:**
@@ -83,7 +83,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 - **Exemplo de Requisição:**
 
   ```bash
-  curl "http://localhost:3000/pokemon/type/electric"
+  curl "http://localhost:3000/pokemons/type/electric"
   ```
 
 - **Resposta:**
@@ -108,7 +108,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 - **Exemplo de Requisição:**
 
   ```bash
-  curl "http://localhost:3000/pokemon/pikachu"
+  curl "http://localhost:3000/pokemons/pikachu"
   ```
 
 - **Resposta:**
