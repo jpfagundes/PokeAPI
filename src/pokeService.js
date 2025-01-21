@@ -1,6 +1,32 @@
 const axios = require("axios");
 const { apiUrl } = require("./config");
 
+// Configuração do Axios com timeout e criação de instância personalizada
+const apiClient = axios.create({
+  baseURL: apiUrl,
+  timeout: 10000, // 10 segundos de tempo limite
+});
+
+/**
+ * Função auxiliar para lidar com tentativas automáticas (retries)
+ * @param {Function} fn - Função que realiza a requisição
+ * @param {number} retries - Número de tentativas
+ * @returns {Promise<any>}
+ */
+async function withRetries(fn, retries = 3) {
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      if (attempt >= retries) {
+        throw error; // Lança o erro após exceder o número de tentativas
+      }
+    }
+  }
+}
+
 /**
  * Lista os Pokémons com paginação.
  * @param {number} offset - Deslocamento para paginação.
@@ -9,30 +35,42 @@ const { apiUrl } = require("./config");
  */
 async function getPokemonList(offset, limit) {
   try {
-    const response = await axios.get(
-      `${apiUrl}/pokemon?offset=${offset}&limit=${limit}`
+    const response = await withRetries(() =>
+      apiClient.get(`/pokemon?offset=${offset}&limit=${limit}`)
     );
+
     // Obtemos a lista básica de Pokémon
     const pokemons = response.data.results;
 
     // Iteramos para obter detalhes adicionais de cada Pokémon
     const detailedPokemons = await Promise.all(
       pokemons.map(async (pokemon) => {
-        const details = await axios.get(`${apiUrl}/pokemon/${pokemon.name}`); // Busca os detalhes completos
+        try {
+          const details = await withRetries(() =>
+            apiClient.get(`/pokemon/${pokemon.name}`)
+          );
+          const { name, id, types, sprites } = details.data;
 
-        // Extrai os campos desejadosS
-        const { name, id, types, sprites } = details.data;
-
-        return {
-          name,
-          id,
-          image: sprites.front_default,
-          types: types.map((t) => t.type.name), // Combina os tipos em uma string
-        };
+          return {
+            name,
+            id,
+            image: sprites.front_default,
+            types: types.map((t) => t.type.name),
+          };
+        } catch (error) {
+          console.error(`Erro ao obter detalhes de ${pokemon.name}: ${error.message}`);
+          return null; // Retorna null para Pokémons que falharem
+        }
       })
     );
 
-    return detailedPokemons; // Retorna apenas os dados filtrados
+    return {
+      next: response.data.next ? response.data.next.split("?")[1] : null,
+      previous: response.data.previous
+        ? response.data.previous.split("?")[1]
+        : null,
+      pokemons: detailedPokemons.filter(Boolean), // Remove itens nulos
+    };
   } catch (error) {
     console.error("Erro ao listar os Pokémon:", error.message);
     throw new Error("Não foi possível listar os Pokémon.");
@@ -44,11 +82,9 @@ async function getPokemonList(offset, limit) {
  * @param {string|number} identifier - Nome ou ID do Pokémon.
  * @returns {Promise<object>} - Detalhes do Pokémon.
  */
-
 async function getPokemonDetails(identifier) {
   try {
-    // Busca os detalhes básicos do Pokémon
-    const response = await axios.get(`${apiUrl}/pokemon/${identifier}`);
+    const response = await withRetries(() => apiClient.get(`/pokemon/${identifier}`));
     const {
       name,
       id,
@@ -62,35 +98,42 @@ async function getPokemonDetails(identifier) {
     } = response.data;
 
     // Busca informações sobre a cadeia de evolução
-    const speciesResponse = await axios.get(species.url);
+    const speciesResponse = await withRetries(() => apiClient.get(species.url));
     const evolutionChainUrl = speciesResponse.data.evolution_chain.url;
 
-    const evolutionResponse = await axios.get(evolutionChainUrl);
+    const evolutionResponse = await withRetries(() =>
+      apiClient.get(evolutionChainUrl)
+    );
     const evolutionData = evolutionResponse.data.chain;
-
-    // Função auxiliar para buscar os dados da cadeia de evolução
 
     const evolutions = await getEvolutions(evolutionData);
 
-    // Retorna os dados formatados
     return {
       id,
       name,
       height,
       weight,
-      types: types.map((t) => t.type.name), // Apenas os nomes dos tipos
+      types: types.map((t) => t.type.name),
       stats: stats.map((s) => s.base_stat),
       evolutions,
       abilities: abilities.map((a) => a.ability.name),
       image: sprites.front_default,
     };
   } catch (error) {
-    throw new Error(
-      `Erro ao buscar detalhes do Pokémon "${identifier}": ${error.message}`
-    );
+    if(error.response && error.response.status === 404){
+      console.error(`Pokémon "${identifier}" não encontrado.`);
+      return null; // Retorna null se o Pokémon não existir
+    }
+    console.error(`Erro ao buscar detalhes do Pokémon "${identifier}": ${error.message}`);
+    throw new Error("Não foi possível obter os detalhes do Pokémon.");
   }
 }
 
+/**
+ * Função auxiliar para buscar a cadeia de evolução.
+ * @param {object} chain - Dados da cadeia de evolução.
+ * @returns {Promise<object[]>}
+ */
 const getEvolutions = async (chain) => {
   const evolutions = [];
   let current = chain;
@@ -98,16 +141,19 @@ const getEvolutions = async (chain) => {
   while (current) {
     const pokemonName = current.species.name;
 
-    // Buscar detalhes do Pokémon para obter a imagem
-    const { data: pokemonData } = await axios.get(
-      `${apiUrl}/pokemon/${pokemonName}`
-    );
+    try {
+      const { data: pokemonData } = await withRetries(() =>
+        apiClient.get(`/pokemon/${pokemonName}`)
+      );
 
-    evolutions.push({
-      id: pokemonData.id,
-      name: pokemonName,
-      image: pokemonData.sprites.front_default,
-    });
+      evolutions.push({
+        id: pokemonData.id,
+        name: pokemonName,
+        image: pokemonData.sprites.front_default,
+      });
+    } catch (error) {
+      console.error(`Erro ao buscar evolução de ${pokemonName}: ${error.message}`);
+    }
 
     current = current.evolves_to[0]; // Assume uma evolução linear
   }
@@ -118,32 +164,38 @@ const getEvolutions = async (chain) => {
 /**
  * Filtra Pokémons por tipo.
  * @param {string} type - Tipo do Pokémon (ex: 'fire', 'water').
- * @returns {Promise<object>} - Lista de Pokémons do tipo especificado.
+ * @returns {Promise<object[]>} - Lista de Pokémons do tipo especificado.
  */
 async function getPokemonsByType(type) {
   try {
-    const responseType = await axios.get(`${apiUrl}/type/${type}`);
+    const responseType = await withRetries(() => apiClient.get(`/type/${type}`));
     const pokemons = responseType.data.pokemon.map((p) => p.pokemon);
 
     const detailedPokemons = await Promise.all(
       pokemons.map(async (pokemon) => {
-        const details = await axios.get(`${apiUrl}/pokemon/${pokemon.name}`);
-        const { name, id, types, sprites } = details.data;
+        try {
+          const details = await withRetries(() =>
+            apiClient.get(`/pokemon/${pokemon.name}`)
+          );
+          const { name, id, types, sprites } = details.data;
 
-        return {
-          name,
-          id,
-          image: sprites.front_default,
-          type: types.map((t) => t.type.name).join(", "),
-        };
+          return {
+            name,
+            id,
+            image: sprites.front_default,
+            types: types.map((t) => t.type.name),
+          };
+        } catch (error) {
+          console.error(`Erro ao obter detalhes de ${pokemon.name}: ${error.message}`);
+          return null; // Retorna null para Pokémons que falharem
+        }
       })
     );
 
-    return detailedPokemons;
+    return detailedPokemons.filter(Boolean); // Remove itens nulos
   } catch (error) {
-    throw new Error(
-      `Não foi possível listar os Pokémon do tipo "${type}". ${error.message}`
-    );
+    console.error(`Erro ao filtrar Pokémon por tipo "${type}": ${error.message}`);
+    throw new Error("Não foi possível listar os Pokémon pelo tipo.");
   }
 }
 
